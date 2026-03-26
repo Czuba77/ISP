@@ -68,28 +68,28 @@ stim: process is
     begin
 
     btn_i(0) <= '1';
-    wait for 1 ns;
+    wait for 1 ms;
     btn_i(0) <= '0';
     sw_i(3 downto 0) <= "0100";
-    wait for 2 ns;
+    wait for 2 ms;
     
     btn_i(1) <= '1';
-    wait for 1 ns;
+    wait for 1 ms;
     btn_i(1) <= '0';
     sw_i(3 downto 0) <= "0110";
-    wait for 2 ns;
+    wait for 2 ms;
     
     btn_i(2) <= '1';
-    wait for 1 ns;
+    wait for 1 ms;
     btn_i(2) <= '0';
     sw_i(3 downto 0) <= "1110";
-    wait for 2 ns;
+    wait for 2 ms;
     
     btn_i(3) <= '1';
-    wait for 1 ns;
+    wait for 1 ms;
     btn_i(3) <= '0';
     sw_i(3 downto 0) <= "0101";
-    wait for 2 ns;
+    wait for 2 ms;
     
     sw_i(7 downto 4) <= not sw_i(7 downto 4);
 
