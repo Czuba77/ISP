@@ -7,7 +7,8 @@ entity rx_rs232 is
         clk_i    : in STD_LOGIC;
         RXD_i    : in STD_LOGIC;
         data_out : out STD_LOGIC_VECTOR (7 downto 0);
-        wr_en_o  : out STD_LOGIC
+        wr_en_o  : out STD_LOGIC;
+        fifo_counter_o : out integer
     );
 end rx_rs232;
 
@@ -28,7 +29,8 @@ begin
     -- Wyprowadzenie sygnałów wewnętrznych na zewnątrz modułu
     data_out <= input_buff;
     wr_en_o <= wr_f;
-
+    fifo_counter_o <= fifo_counter;
+    
     process(clk_i)
     begin
         if rising_edge(clk_i) then
@@ -101,8 +103,10 @@ begin
         if rising_edge(clk_i) then
             wr_f <= '0'; 
             if present_state = operate and p = 10416 and curr_bit = 7 and fifo_counter < 64 then
-                wr_f <= '1';
-                fifo_counter <= fifo_counter + 1;
+                if input_buff /= 13 then
+                    wr_f <= '1';
+                    fifo_counter <= fifo_counter + 1;
+                end if;
             end if;
         end if;
     end process fifo_write_ctrl;

@@ -7,7 +7,8 @@ entity tx_rs232 is
         clk_i       : in STD_LOGIC;
         start_trans : in STD_LOGIC;
         data_in     : in STD_LOGIC_VECTOR (7 downto 0);
-        TXD_o       : out STD_LOGIC
+        TXD_o       : out STD_LOGIC;
+        ready_o     : out STD_LOGIC
     );
 end tx_rs232;
 
@@ -52,10 +53,12 @@ begin
             present_state_out <= next_state_out;
             case present_state_out is
                 when idle =>
+                    ready_o <= '1';
                     p_out <= 0;
                     curr_bit_out <= 0;
                     TXD_o <= '1';
                 when start =>
+                    ready_o <= '0';
                     TXD_o <= '0';
                     if p_out = 10416 then
                         p_out <= 0;

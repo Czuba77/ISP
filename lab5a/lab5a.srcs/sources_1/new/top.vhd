@@ -49,10 +49,62 @@ architecture Behavioral of top is
     signal rd_f : STD_LOGIC := '0'; 
     signal empty_f : STD_LOGIC := '0'; 
     signal dout_f : std_logic_vector(7 downto 0) := (others => '0');
-
+    
+    signal ready_emitter : STD_LOGIC := '0'; 
+    
+    signal fifo_counter : integer;
+    signal session_counter : integer := 0;
+    signal p : integer;
+    
+    type TopStateType is (idle, send);
+    signal present_state : TopStateType  := idle;
+    signal next_state : TopStateType := idle;
+    
 begin
+    comb_top: process(present_state) is
+    begin
+        next_state <= present_state; 
+        case present_state is
+            when idle =>
+                if rx_data_sig = 13 or fifo_counter >= 18 then
+                    session_counter <= fifo_counter mod 19;
+                    next_state <= send;
+                end if;
+            when send =>
+                if session_counter = 0 then
+                    next_state <= idle;
+                end if;
+        end case;
+    end process comb_top;
 
-    -- Pamięć znaków
+    seq_top: process(clk_i) is
+    begin
+        if rising_edge(clk_i) then
+            present_state <= next_state;
+            case present_state is
+                when idle =>
+                
+                when send =>
+                    
+            end case;
+        end if;
+    end process seq_top;
+    
+    fifo_send_ctrl: process(clk_i)
+    begin
+        if rising_edge(clk_i) then
+            rd_f <= '0';
+            tx_start_sig <= '1';
+            if present_state = send and ready_emitter = '1' then
+                    rd_f <= '1';
+                    tx_data_sig <= dout_f;
+                    tx_start_sig <= '0';
+                    fifo_counter <= fifo_counter -1;
+                    session_counter <= session_counter -1;
+            end if;
+        end if;
+    end process fifo_send_ctrl;
+    
     char_rom_inst : char_mem
       PORT MAP (
         clka => clk_i,
@@ -60,7 +112,6 @@ begin
         douta => char_pixel
       );
     
-    -- Kolejka FIFO
     fifo_mem_inst : fifo_mem
       PORT MAP (
         clk => clk_i,
@@ -73,29 +124,31 @@ begin
         empty => empty_f
       );
 
-    -- Moduł odbiornika
+    --odbiornik
     rx_inst: entity work.rx_rs232
       PORT MAP (
         clk_i => clk_i,
         RXD_i => RXD_i,
         data_out => rx_data_sig,
-        wr_en_o => rx_wr_en_sig
+        wr_en_o => rx_wr_en_sig,
+        fifo_counter_o => fifo_counter
       );
 
-    -- Moduł nadajnika
+    --nadajnik
     tx_inst: entity work.tx_rs232
       PORT MAP (
         clk_i => clk_i,
         start_trans => tx_start_sig,
         data_in => tx_data_sig,
-        TXD_o => TXD_o
+        TXD_o => TXD_o,
+        ready_o => ready_emitter
       );
 
-    -- Moduł wyświetlacza (wyświetla aktualnie odczytany znak z FIFO)
+    --wyswietlacz
     disp_inst: entity work.display_7seg
       PORT MAP (
         clk_i => clk_i,
-        data_in => rx_data_sig, -- lub dout_f w zależności od tego co chcesz monitorować
+        data_in => rx_data_sig,
         led7_an_o => led7_an_o,
         led7_seg_o => led7_seg_o
       );
