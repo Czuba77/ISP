@@ -51,29 +51,73 @@ architecture Behavioral of top is
     signal dout_f : std_logic_vector(7 downto 0) := (others => '0');
     
     signal ready_emitter : STD_LOGIC := '0'; 
+    signal actual_fifo_wr : std_logic := '0';
     
-    signal fifo_counter : integer;
+    signal fifo_counter : integer := 0;
     signal session_counter : integer := 0;
     signal p : integer;
     
-    type TopStateType is (idle, send);
-    signal present_state : TopStateType  := idle;
-    signal next_state : TopStateType := idle;
+    type TopStateType is (WAIT_FOR_DATA,RD_F_ON,WAIT_FOR_FIFO,
+    START_SEND,WAIT_FOR_START_SEND,WAIT_FOR_DONE_SEND);
+    signal present_state : TopStateType  := WAIT_FOR_DATA;
+    signal next_state : TopStateType := WAIT_FOR_DATA;
     
 begin
-    comb_top: process(present_state) is
+    actual_fifo_wr <= '1' when (rx_wr_en_sig = '1' and rx_data_sig /= 13) else '0';
+    
+    fifo_manager: process(clk_i)
+    begin
+        if rising_edge(clk_i) then
+            -- Inicjalizacja (opcjonalna, przy resecie układu, ale my jedziemy bez resetu)
+            
+            -- Sytuacja 1: Wrzucamy nowy znak do FIFO (sygnał z odbiornika) i NIE wyciągamy
+            if rx_wr_en_sig = '1' and rd_f = '0' then
+                if rx_data_sig /= 13 and fifo_counter < 64 then  -- <== TUTAJ DODANY WARUNEK rx_data_sig /= 13
+                    fifo_counter <= fifo_counter + 1;
+                end if;
+                
+            -- Sytuacja 2: Wyciągamy znak z FIFO (sygnał do nadajnika) i nic nowego nie wpada
+            elsif rd_f = '1' and rx_wr_en_sig = '0' then
+                if fifo_counter > 0 then
+                    fifo_counter <= fifo_counter - 1;
+                end if;
+                
+            -- Sytuacja 3: Jednocześnie wrzucamy i wyciągamy znak (licznik pozostaje bez zmian)
+            elsif rx_wr_en_sig = '1' and rd_f = '1' then
+                fifo_counter <= fifo_counter; 
+            end if;
+            
+        end if;
+    end process fifo_manager;
+
+
+    comb_top: process(present_state, rx_wr_en_sig, rx_data_sig, fifo_counter, ready_emitter, session_counter) is
     begin
         next_state <= present_state; 
         case present_state is
-            when idle =>
-                if rx_data_sig = 13 or fifo_counter >= 18 then
-                    session_counter <= fifo_counter mod 19;
-                    next_state <= send;
+            when WAIT_FOR_DATA =>
+                if (rx_wr_en_sig = '1' and rx_data_sig = 13) or (fifo_counter >= 18) then
+                    next_state <= RD_F_ON;
                 end if;
-            when send =>
-                if session_counter = 0 then
-                    next_state <= idle;
+            when RD_F_ON =>
+                    next_state <= WAIT_FOR_FIFO;
+            when WAIT_FOR_FIFO =>
+                    next_state <= START_SEND;
+            when START_SEND =>
+                next_state <= WAIT_FOR_START_SEND;
+            when WAIT_FOR_START_SEND =>
+                if ready_emitter = '0' then
+                    next_state <= WAIT_FOR_DONE_SEND;  
                 end if;
+            when WAIT_FOR_DONE_SEND =>
+                if ready_emitter = '1' then
+                    if session_counter = 0 then
+                        next_state <= WAIT_FOR_DATA;
+                    else 
+                        next_state <= RD_F_ON;                    
+                    end if;
+                end if;                 
+
         end case;
     end process comb_top;
 
@@ -82,28 +126,26 @@ begin
         if rising_edge(clk_i) then
             present_state <= next_state;
             case present_state is
-                when idle =>
-                
-                when send =>
-                    
+                when WAIT_FOR_DATA =>
+                    rd_f <= '0';
+                    if (rx_wr_en_sig = '1' and rx_data_sig = 13) or (fifo_counter >= 18) then
+                        session_counter <= fifo_counter;
+                    end if;
+                when RD_F_ON =>
+                    rd_f <= '1';
+                    session_counter <= session_counter -1;
+                when WAIT_FOR_FIFO =>
+                    rd_f <= '0';
+                when WAIT_FOR_START_SEND =>
+                when START_SEND =>
+                    tx_data_sig <= dout_f;       
+                    tx_start_sig <= '0';   
+                when WAIT_FOR_DONE_SEND => 
+                    tx_start_sig <= '1';                
             end case;
         end if;
     end process seq_top;
     
-    fifo_send_ctrl: process(clk_i)
-    begin
-        if rising_edge(clk_i) then
-            rd_f <= '0';
-            tx_start_sig <= '1';
-            if present_state = send and ready_emitter = '1' then
-                    rd_f <= '1';
-                    tx_data_sig <= dout_f;
-                    tx_start_sig <= '0';
-                    fifo_counter <= fifo_counter -1;
-                    session_counter <= session_counter -1;
-            end if;
-        end if;
-    end process fifo_send_ctrl;
     
     char_rom_inst : char_mem
       PORT MAP (
@@ -117,7 +159,7 @@ begin
         clk => clk_i,
         srst => srst_f,
         din => rx_data_sig,
-        wr_en => rx_wr_en_sig,
+        wr_en => actual_fifo_wr,
         rd_en => rd_f,
         dout => dout_f,
         full => ld0,
@@ -130,8 +172,7 @@ begin
         clk_i => clk_i,
         RXD_i => RXD_i,
         data_out => rx_data_sig,
-        wr_en_o => rx_wr_en_sig,
-        fifo_counter_o => fifo_counter
+        wr_en_o => rx_wr_en_sig
       );
 
     --nadajnik

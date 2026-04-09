@@ -7,8 +7,7 @@ entity rx_rs232 is
         clk_i    : in STD_LOGIC;
         RXD_i    : in STD_LOGIC;
         data_out : out STD_LOGIC_VECTOR (7 downto 0);
-        wr_en_o  : out STD_LOGIC;
-        fifo_counter_o : out integer
+        wr_en_o  : out STD_LOGIC
     );
 end rx_rs232;
 
@@ -18,7 +17,6 @@ architecture Behavioral of rx_rs232 is
     signal rxd_sync_2 : STD_LOGIC := '1'; 
     signal p : integer range 0 to 10416 := 0;
     signal curr_bit : integer range 0 to 7 := 0;
-    signal fifo_counter : integer := 0;
     signal wr_f : STD_LOGIC := '0'; 
 
     type StateType is (idle,start, operate, finish);
@@ -29,7 +27,6 @@ begin
     -- Wyprowadzenie sygnałów wewnętrznych na zewnątrz modułu
     data_out <= input_buff;
     wr_en_o <= wr_f;
-    fifo_counter_o <= fifo_counter;
     
     process(clk_i)
     begin
@@ -102,11 +99,8 @@ begin
     begin
         if rising_edge(clk_i) then
             wr_f <= '0'; 
-            if present_state = operate and p = 10416 and curr_bit = 7 and fifo_counter < 64 then
-                if input_buff /= 13 then
+            if present_state = operate and p = 10416 and curr_bit = 7 then
                     wr_f <= '1';
-                    fifo_counter <= fifo_counter + 1;
-                end if;
             end if;
         end if;
     end process fifo_write_ctrl;
