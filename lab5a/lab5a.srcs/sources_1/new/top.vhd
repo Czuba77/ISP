@@ -13,7 +13,6 @@ end top;
 
 architecture Behavioral of top is
 
-    -- Deklaracje wygenerowanych IP Core
     COMPONENT char_mem
       PORT (
         clka : IN STD_LOGIC;
@@ -35,7 +34,6 @@ architecture Behavioral of top is
       );
     END COMPONENT;
 
-    -- Sygnały łączące poszczególne klocki
     signal rx_data_sig : std_logic_vector(7 downto 0);
     signal rx_wr_en_sig : std_logic;
     
@@ -68,21 +66,16 @@ begin
     fifo_manager: process(clk_i)
     begin
         if rising_edge(clk_i) then
-            -- Inicjalizacja (opcjonalna, przy resecie układu, ale my jedziemy bez resetu)
-            
-            -- Sytuacja 1: Wrzucamy nowy znak do FIFO (sygnał z odbiornika) i NIE wyciągamy
             if rx_wr_en_sig = '1' and rd_f = '0' then
-                if rx_data_sig /= 13 and fifo_counter < 64 then  -- <== TUTAJ DODANY WARUNEK rx_data_sig /= 13
+                if rx_data_sig /= 13 and fifo_counter < 64 then
                     fifo_counter <= fifo_counter + 1;
                 end if;
-                
-            -- Sytuacja 2: Wyciągamy znak z FIFO (sygnał do nadajnika) i nic nowego nie wpada
+
             elsif rd_f = '1' and rx_wr_en_sig = '0' then
                 if fifo_counter > 0 then
                     fifo_counter <= fifo_counter - 1;
                 end if;
-                
-            -- Sytuacja 3: Jednocześnie wrzucamy i wyciągamy znak (licznik pozostaje bez zmian)
+
             elsif rx_wr_en_sig = '1' and rd_f = '1' then
                 fifo_counter <= fifo_counter; 
             end if;
@@ -194,6 +187,5 @@ begin
         led7_seg_o => led7_seg_o
       );
 
-    -- W tym miejscu pozostaje dodać Główny Kontroler (maszynę stanów drukującą z bufora)
     
 end Behavioral;
